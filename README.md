@@ -3,10 +3,10 @@ windowfocus
 
 Here's a simple script for changing window focus.  Usage:
 
-  windowfocus left
-  windowfocus right
-  windowfocus up
-  windowfocus down
+    windowfocus left
+    windowfocus right
+    windowfocus up
+    windowfocus down
 
 You can configure a custom shortcut (I use vi-like bindings:
 Alt+Shift+H, Alt+Shift+J, Alt+Shift+K, and Alt+Shift+L).
