@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 
-COMMAND = ARGV[0]
+DIRECTION = ARGV[0]
 VERBOSE = true
 
 def shell_to_hash(s)
@@ -13,6 +13,31 @@ def shell_to_hash(s)
   end
 
   return h
+end
+
+def direction(src, dest)
+  src_midx = (src['X'].to_i + src['WIDTH'].to_i) / 2
+  src_midy = (src['Y'].to_i + src['HEIGHT'].to_i) / 2
+  dest_midx = (dest['X'].to_i + dest['WIDTH'].to_i) / 2
+  dest_midy = (dest['Y'].to_i + dest['HEIGHT'].to_i) / 2
+
+  diff_x = dest_midx - src_midx
+  diff_y = dest_midy - src_midy
+
+  angle_rads = Math.atan2(diff_y, diff_x)
+  angle = angle_rads * 180 / Math::PI
+
+  puts "(#{src_midx},#{src_midy}) to (#{dest_midx},#{dest_midy}): diff=(#{diff_x},#{diff_y}), angle=#{angle_rads} #{angle}" if VERBOSE
+
+  if angle > 45 and angle <= 135 then
+    return 'down'
+  elsif angle < -45 and angle >= -135 then
+    return 'up'
+  elsif angle <= 45 and angle >= -45 then
+    return 'right'
+  else
+    return 'left'
+  end
 end
 
 # Get information for the active window
@@ -41,21 +66,23 @@ windows.each do |window_id|
   window = shell_to_hash(`xdotool getwindowgeometry --shell #{window_id}`)
 
   # Determine how close the window is in the specified direction
-  case COMMAND
+  case DIRECTION
   when 'left'  then diff = active['X'].to_i - window['X'].to_i
   when 'right' then diff = window['X'].to_i - active['X'].to_i
   when 'up'    then diff = active['Y'].to_i - window['Y'].to_i
   when 'down'  then diff = window['Y'].to_i - active['Y'].to_i
   end
 
+  dir = direction(active, window)
+
   # Is this the next closest window in the specified direction?  If so
   # then keep it.
-  if diff > 0 and diff < smallest then
+  if DIRECTION == dir and diff > 0 and diff < smallest then
     smallest = diff
     target_id = window_id
   end
 
-  puts "#{window_id} #{active.inspect} #{window.inspect} #{smallest} #{target_id}" if VERBOSE
+  puts "#{window_id} #{active.inspect} #{window.inspect} #{smallest} #{target_id} #{dir}" if VERBOSE
 end
 
 if target_id then
