@@ -1,0 +1,49 @@
+#!/bin/bash
+
+cmd=$1
+verbose=1
+
+debug() {
+  if [ "${verbose}" = "1" ]; then
+    echo "$*"
+  fi
+}
+
+active=$(xdotool getwindowfocus)
+eval $(xdotool getwindowgeometry --shell ${active})
+active_x=${X}
+active_y=${Y}
+active_width=${WIDTH}
+active_height=${HEIGHT}
+active_screen=${SCREEN}
+
+desktop=$(xdotool get_desktop)
+
+windows=$(xdotool search --onlyvisible --maxdepth 2 --screen ${active_screen} --desktop ${desktop} --name '.*')
+debug "${windows}"
+
+smallest=999999
+target=
+
+for window in ${windows}; do
+  eval $(xdotool getwindowgeometry --shell ${window}) # WINDOW X Y WIDTH HEIGHT SCREEN
+  
+  case ${cmd} in
+    left)  diff=$(( ${active_x} - ${X} )) ;;
+    right) diff=$(( ${X} - ${active_x} )) ;;
+    up)    diff=$(( ${active_y} - ${Y} )) ;;
+    down)  diff=$(( ${Y} - ${active_y} )) ;;
+  esac
+
+  if [ "${diff}" -gt 0 -a "${diff}" -lt "${smallest}" ]; then
+    smallest=${diff}
+    target=${window}
+  fi
+
+  debug "${window} ${active_x} ${X} ${active_y} ${Y} ${diff} ${smallest} ${target}"
+done
+
+if [ -n "${target}" ]; then
+  xdotool windowfocus "${target}"
+fi
+
