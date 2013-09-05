@@ -15,6 +15,9 @@ TODO:
 * Currently implemented as a bash script, so it's a little bit slow
 * Need a better algorithm to determine which window is "up", "left",
   etc. (currently just uses the window's X or Y coordinates)
+* I'm not sure how to ignore iconified/minimized windows.  It seems, at
+  least under Cinnamon, that minimized windows still have a map state of
+  IsViewable.
 
 License: MIT License (http://www.opensource.org/licenses/mit-license.html) 
 
