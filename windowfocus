@@ -1,0 +1,66 @@
+#!/usr/bin/env ruby
+
+COMMAND = ARGV[0]
+VERBOSE = true
+
+def shell_to_hash(s)
+  h = { }
+
+  s.each_line do |line|
+    line.chomp!
+    key, value = line.split('=', 2)
+    h[key] = value
+  end
+
+  return h
+end
+
+# Get information for the active window
+active_id = `xdotool getwindowfocus`.chomp
+active = shell_to_hash(`xdotool getwindowgeometry --shell #{active_id}`)
+
+# Get information about the current desktop
+desktop = `xdotool get_desktop`.chomp
+
+# Get a list of visible windows
+puts "xdotool search --onlyvisible --maxdepth 2 --screen #{active['SCREEN']} --desktop #{desktop} --name '.*'"
+s_windows = `xdotool search --onlyvisible --maxdepth 2 --screen #{active['SCREEN']} --desktop #{desktop} --name '.*'`
+windows = s_windows.split
+p windows if VERBOSE
+
+smallest = Float::INFINITY
+target_id = nil
+
+windows.each do |window_id|
+  # If the window is hidden (minimized/iconified), then ignore it
+  xwininfo = `xwininfo -all -id #{window_id}`
+  puts "#{window_id}: hidden=#{xwininfo =~ /hidden/i}" if VERBOSE
+  next if xwininfo =~ /hidden/i
+
+  # Get information about the window
+  window = shell_to_hash(`xdotool getwindowgeometry --shell #{window_id}`)
+
+  # Determine how close the window is in the specified direction
+  case COMMAND
+  when 'left'  then diff = active['X'].to_i - window['X'].to_i
+  when 'right' then diff = window['X'].to_i - active['X'].to_i
+  when 'up'    then diff = active['Y'].to_i - window['Y'].to_i
+  when 'down'  then diff = window['Y'].to_i - active['Y'].to_i
+  end
+
+  # Is this the next closest window in the specified direction?  If so
+  # then keep it.
+  if diff > 0 and diff < smallest then
+    smallest = diff
+    target_id = window_id
+  end
+
+  puts "#{window_id} #{active.inspect} #{window.inspect} #{smallest} #{target_id}" if VERBOSE
+end
+
+if target_id then
+  puts "HERE"
+  p target_id
+  `xdotool windowfocus #{target_id}`
+end
+
