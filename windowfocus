@@ -1,7 +1,28 @@
 #!/usr/bin/env ruby
 
+require 'optparse'
+require 'ostruct'
+require 'logger'
+
 DIRECTION = ARGV[0]
-VERBOSE = true
+
+$logger = Logger.new($stdout)
+
+options = OpenStruct.new
+
+parser = OptionParser.new do |opts|
+  opts.banner = "Usage: #$0 [options]"
+
+  opts.on('-v', '--[no-]verbose', 'Run verbosely') { |v| options.verbose = v }
+end
+
+parser.parse!
+
+if options.verbose then
+  $logger.level = Logger::DEBUG
+else
+  $logger.level = Logger::ERROR
+end
 
 def shell_to_hash(s)
   h = { }
@@ -27,7 +48,7 @@ def direction(src, dest)
   angle_rads = Math.atan2(diff_y, diff_x)
   angle = angle_rads * 180 / Math::PI
 
-  puts "(#{src_midx},#{src_midy}) to (#{dest_midx},#{dest_midy}): diff=(#{diff_x},#{diff_y}), angle=#{angle_rads} #{angle}" if VERBOSE
+  $logger.info "(#{src_midx},#{src_midy}) to (#{dest_midx},#{dest_midy}): diff=(#{diff_x},#{diff_y}), angle=#{angle_rads} #{angle}"
 
   if angle > 45 and angle <= 135 then
     return 'down'
@@ -48,10 +69,10 @@ active = shell_to_hash(`xdotool getwindowgeometry --shell #{active_id}`)
 desktop = `xdotool get_desktop`.chomp
 
 # Get a list of visible windows
-puts "xdotool search --onlyvisible --maxdepth 2 --screen #{active['SCREEN']} --desktop #{desktop} --name '.*'"
+$logger.info "xdotool search --onlyvisible --maxdepth 2 --screen #{active['SCREEN']} --desktop #{desktop} --name '.*'"
 s_windows = `xdotool search --onlyvisible --maxdepth 2 --screen #{active['SCREEN']} --desktop #{desktop} --name '.*'`
 windows = s_windows.split
-p windows if VERBOSE
+$logger.info "Windows: #{windows.inspect}"
 
 smallest = Float::INFINITY
 target_id = nil
@@ -59,7 +80,7 @@ target_id = nil
 windows.each do |window_id|
   # If the window is hidden (minimized/iconified), then ignore it
   xwininfo = `xwininfo -all -id #{window_id}`
-  puts "#{window_id}: hidden=#{xwininfo =~ /hidden/i}" if VERBOSE
+  $logger.info "#{window_id}: hidden=#{xwininfo =~ /hidden/i}"
   next if xwininfo =~ /hidden/i
 
   # Get information about the window
@@ -82,12 +103,11 @@ windows.each do |window_id|
     target_id = window_id
   end
 
-  puts "#{window_id} #{active.inspect} #{window.inspect} #{smallest} #{target_id} #{dir}" if VERBOSE
+  $logger.info "#{window_id} #{active.inspect} #{window.inspect} #{smallest} #{target_id} #{dir}"
 end
 
 if target_id then
-  puts "HERE"
-  p target_id
+  $logger.info "Changing focus to window #{target_id}"
   `xdotool windowfocus #{target_id}`
 end
 
