@@ -2,26 +2,21 @@
 
 require 'optparse'
 require 'ostruct'
-require 'logger'
 
 DIRECTION = ARGV[0]
 
-$logger = Logger.new($stdout)
-
-options = OpenStruct.new
+$verbose = false
 
 parser = OptionParser.new do |opts|
   opts.banner = "Usage: #$0 [options]"
 
-  opts.on('-v', '--[no-]verbose', 'Run verbosely') { |v| options.verbose = v }
+  opts.on('-v', '--[no-]verbose', 'Run verbosely') { |v| $verbose = true }
 end
 
 parser.parse!
 
-if options.verbose then
-  $logger.level = Logger::DEBUG
-else
-  $logger.level = Logger::ERROR
+def log(msg)
+  puts msg if $verbose
 end
 
 def shell_to_hash(s)
@@ -48,7 +43,7 @@ def direction(src, dest)
   angle_rads = Math.atan2(diff_y, diff_x)
   angle = angle_rads * 180 / Math::PI
 
-  $logger.info "(#{src_midx},#{src_midy}) to (#{dest_midx},#{dest_midy}): diff=(#{diff_x},#{diff_y}), angle=#{angle_rads} #{angle}"
+  log "(#{src_midx},#{src_midy}) to (#{dest_midx},#{dest_midy}): diff=(#{diff_x},#{diff_y}), angle=#{angle_rads} #{angle}"
 
   if angle > 45 and angle <= 135 then
     return 'down'
@@ -61,28 +56,33 @@ def direction(src, dest)
   end
 end
 
-# Get information for the active window
+# Get information for the active window (10ms)
 active_id = `xdotool getwindowfocus`.chomp
 active = shell_to_hash(`xdotool getwindowgeometry --shell #{active_id}`)
 
-# Get information about the current desktop
+# Get information about the current desktop (2ms)
 desktop = `xdotool get_desktop`.chomp
 
-# Get a list of visible windows
-$logger.info "xdotool search --onlyvisible --maxdepth 2 --screen #{active['SCREEN']} --desktop #{desktop} --name '.*'"
-s_windows = `xdotool search --onlyvisible --maxdepth 2 --screen #{active['SCREEN']} --desktop #{desktop} --name '.*'`
+# Get a list of visible windows (20ms)
+cmd = "xdotool search --onlyvisible --maxdepth 2 --screen #{active['SCREEN']} --desktop #{desktop} --name '.*'"
+log cmd
+s_windows = `#{cmd}`
 windows = s_windows.split
-$logger.info "Windows: #{windows.inspect}"
+log "Windows: #{windows.inspect}"
 
 smallest = Float::INFINITY
 target_id = nil
 
-windows.each do |window_id|
+# Find non-hidden windows (20ms)
+windows = windows.reject do |window_id|
   # If the window is hidden (minimized/iconified), then ignore it
   xwininfo = `xwininfo -all -id #{window_id}`
-  $logger.info "#{window_id}: hidden=#{xwininfo =~ /hidden/i}"
-  next if xwininfo =~ /hidden/i
+  log "#{window_id}: hidden=#{xwininfo =~ /hidden/i}"
+  xwininfo =~ /hidden/i
+end
 
+# Select a new target window
+windows.each do |window_id|
   # Get information about the window
   window = shell_to_hash(`xdotool getwindowgeometry --shell #{window_id}`)
 
@@ -103,11 +103,11 @@ windows.each do |window_id|
     target_id = window_id
   end
 
-  $logger.info "#{window_id} #{active.inspect} #{window.inspect} #{smallest} #{target_id} #{dir}"
+  log "#{window_id} #{active.inspect} #{window.inspect} #{smallest} #{target_id} #{dir}"
 end
 
+# Focus the target window (0ms)
 if target_id then
-  $logger.info "Changing focus to window #{target_id}"
+  log "Changing focus to window #{target_id}"
   `xdotool windowfocus #{target_id}`
 end
-
