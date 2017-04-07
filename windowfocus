@@ -31,6 +31,23 @@ def shell_to_hash(s)
   return h
 end
 
+def shell_to_hashes(s)
+  all = [ ]
+  h = { }
+
+  s.each_line do |line|
+    line.chomp!
+    key, value = line.split('=', 2)
+    if h.include?(key) then
+      all << h
+      h = { }
+    end
+    h[key] = value
+  end
+
+  return all
+end
+
 def direction(src, dest)
   src_midx = (src['X'].to_i + src['WIDTH'].to_i) / 2
   src_midy = (src['Y'].to_i + src['HEIGHT'].to_i) / 2
@@ -56,9 +73,8 @@ def direction(src, dest)
   end
 end
 
-# Get information for the active window (10ms)
-active_id = `xdotool getwindowfocus`.chomp
-active = shell_to_hash(`xdotool getwindowgeometry --shell #{active_id}`)
+# Get information for the active window (5ms)
+active = shell_to_hash(`xdotool getwindowfocus getwindowgeometry --shell`)
 
 # Get information about the current desktop (2ms)
 desktop = `xdotool get_desktop`.chomp
@@ -70,9 +86,6 @@ s_windows = `#{cmd}`
 windows = s_windows.split
 log "Windows: #{windows.inspect}"
 
-smallest = Float::INFINITY
-target_id = nil
-
 # Find non-hidden windows (20ms)
 windows = windows.reject do |window_id|
   # If the window is hidden (minimized/iconified), then ignore it
@@ -81,11 +94,18 @@ windows = windows.reject do |window_id|
   xwininfo =~ /hidden/i
 end
 
-# Select a new target window
-windows.each do |window_id|
-  # Get information about the window
-  window = shell_to_hash(`xdotool getwindowgeometry --shell #{window_id}`)
+# Get window geometries (17ms)
+# geometries = windows.map do |window_id|
+#   shell_to_hash(`xdotool getwindowgeometry --shell #{window_id}`)
+# end
+geometry_commands = windows.map { |window_id| "getwindowgeometry --shell #{window_id}" }
+geometries = shell_to_hashes(`xdotool #{geometry_commands.join(' ')}`)
 
+smallest = Float::INFINITY
+target_id = nil
+
+# Select a new target window (0ms)
+geometries.each do |window|
   # Determine how close the window is in the specified direction
   case DIRECTION
   when 'left'  then diff = active['X'].to_i - window['X'].to_i
@@ -100,10 +120,10 @@ windows.each do |window_id|
   # then keep it.
   if DIRECTION == dir and diff > 0 and diff < smallest then
     smallest = diff
-    target_id = window_id
+    target_id = window['WINDOW']
   end
 
-  log "#{window_id} #{active.inspect} #{window.inspect} #{smallest} #{target_id} #{dir}"
+  log "#{window['WINDOW']} #{active.inspect} #{window.inspect} #{smallest} #{target_id} #{dir}"
 end
 
 # Focus the target window (0ms)
