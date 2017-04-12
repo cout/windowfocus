@@ -19,13 +19,20 @@ def log(msg)
   puts msg if $verbose
 end
 
+def shell_to_value(s)
+  case s
+  when /^\d+$/ then s.to_i
+  else s
+  end
+end
+
 def shell_to_hash(s)
   h = { }
 
   s.each_line do |line|
     line.chomp!
     key, value = line.split('=', 2)
-    h[key] = value
+    h[key] = shell_to_value(value)
   end
 
   return h
@@ -42,17 +49,19 @@ def shell_to_hashes(s)
       all << h
       h = { }
     end
-    h[key] = value
+    h[key] = shell_to_value(value)
   end
+
+  all << h
 
   return all
 end
 
 def direction(src, dest)
-  src_midx = (src['X'].to_i + src['WIDTH'].to_i) / 2
-  src_midy = (src['Y'].to_i + src['HEIGHT'].to_i) / 2
-  dest_midx = (dest['X'].to_i + dest['WIDTH'].to_i) / 2
-  dest_midy = (dest['Y'].to_i + dest['HEIGHT'].to_i) / 2
+  src_midx = (src['X'] + src['WIDTH']) / 2
+  src_midy = (src['Y'] + src['HEIGHT']) / 2
+  dest_midx = (dest['X'] + dest['WIDTH']) / 2
+  dest_midy = (dest['Y'] + dest['HEIGHT']) / 2
 
   diff_x = dest_midx - src_midx
   diff_y = dest_midy - src_midy
@@ -90,28 +99,50 @@ log "Windows: #{windows.inspect}"
 windows = windows.reject do |window_id|
   # If the window is hidden (minimized/iconified), then ignore it
   xwininfo = `xwininfo -all -id #{window_id}`
-  log "#{window_id}: hidden=#{xwininfo =~ /hidden/i}"
-  xwininfo =~ /hidden/i
+  hidden = xwininfo =~ /hidden/i
+  log "#{window_id}: hidden=#{hidden}"
+  hidden
 end
 
 # Get window geometries (17ms)
 # geometries = windows.map do |window_id|
 #   shell_to_hash(`xdotool getwindowgeometry --shell #{window_id}`)
 # end
-geometry_commands = windows.map { |window_id| "getwindowgeometry --shell #{window_id}" }
-geometries = shell_to_hashes(`xdotool #{geometry_commands.join(' ')}`)
+geometry_cmds = windows.map { |window_id| "getwindowgeometry --shell #{window_id}" }
+geometry_cmd = "xdotool #{geometry_cmds.join(' ')}"
+geometries = shell_to_hashes(`#{geometry_cmd}`)
 
 smallest = Float::INFINITY
 target_id = nil
+
+# Remove any occluded windows
+visible = [ ]
+geometries.each do |window|
+  visible.delete_if do |rectangle|
+    wx0 = window['X']; wy0 = window['Y']
+    wx1 = window['X'] + window['WIDTH']; wy1 = window['Y'] + window['HEIGHT']
+    rx0 = rectangle['X']; ry0 = rectangle['Y']
+    rx1 = rectangle['X'] + rectangle['WIDTH']; ry1 = rectangle['Y'] + rectangle['HEIGHT']
+
+    occluded = rx0.between?(wx0, wx1) && rx1.between?(wx0, wx1) &&
+               ry0.between?(wy0, wy1) && ry1.between?(wy0, wy1)
+
+    occluded
+  end
+
+  visible << window
+end
+
+geometries = visible
 
 # Select a new target window (0ms)
 geometries.each do |window|
   # Determine how close the window is in the specified direction
   case DIRECTION
-  when 'left'  then diff = active['X'].to_i - window['X'].to_i
-  when 'right' then diff = window['X'].to_i - active['X'].to_i
-  when 'up'    then diff = active['Y'].to_i - window['Y'].to_i
-  when 'down'  then diff = window['Y'].to_i - active['Y'].to_i
+  when 'left'  then diff = active['X'] - window['X']
+  when 'right' then diff = window['X'] - active['X']
+  when 'up'    then diff = active['Y'] - window['Y']
+  when 'down'  then diff = window['Y'] - active['Y']
   end
 
   dir = direction(active, window)
